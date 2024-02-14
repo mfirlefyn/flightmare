@@ -164,6 +164,23 @@ std::vector<Scalar> transformationRos2Unity(const Matrix<4, 4>& ros_tran_mat) {
   return tran_unity;
 }
 
+std::vector<Scalar> rot_mat
+(const Quaternion& ros_quat) {
+  /// [ Quaternion ] from ROS coordinate system (right hand)
+  /// to Unity coordinate system (left hand)
+  Matrix<3, 3> rot_mat = Matrix<3, 3>::Zero();
+  rot_mat(0, 0) = 1.0;
+  rot_mat(1, 2) = 1.0;
+  rot_mat(2, 1) = 1.0;
+  //
+  Matrix<3, 3> unity_rot_mat =
+    rot_mat * ros_quat.toRotationMatrix() * rot_mat.transpose();
+  Quaternion unity_quat(unity_rot_mat);
+  std::vector<Scalar> unity_quat_vec{unity_quat.x(), unity_quat.y(),
+                                     unity_quat.z(), unity_quat.w()};
+  return unity_quat_vec;
+}
+
 std::vector<Scalar> quaternionRos2Unity(const Quaternion& ros_quat) {
   /// [ Quaternion ] from ROS coordinate system (right hand)
   /// to Unity coordinate system (left hand)

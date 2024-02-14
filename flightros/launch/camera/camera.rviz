@@ -54,11 +54,11 @@ Visualization Manager:
       Value: false
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /depth
+      Image Topic: /rgb0
       Max Value: 1
       Median window: 5
       Min Value: 0
-      Name: Image
+      Name: front
       Normalize Range: true
       Queue Size: 2
       Transport Hint: raw
@@ -66,11 +66,11 @@ Visualization Manager:
       Value: true
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /rgb
+      Image Topic: /rgb1
       Max Value: 1
       Median window: 5
       Min Value: 0
-      Name: Image
+      Name: left
       Normalize Range: true
       Queue Size: 2
       Transport Hint: raw
@@ -78,11 +78,11 @@ Visualization Manager:
       Value: true
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /segmentation
+      Image Topic: /rgb2
       Max Value: 1
       Median window: 5
       Min Value: 0
-      Name: Image
+      Name: back
       Normalize Range: true
       Queue Size: 2
       Transport Hint: raw
@@ -90,11 +90,11 @@ Visualization Manager:
       Value: true
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /opticalflow
+      Image Topic: /rgb3
       Max Value: 1
       Median window: 5
       Min Value: 0
-      Name: Image
+      Name: right
       Normalize Range: true
       Queue Size: 2
       Transport Hint: raw

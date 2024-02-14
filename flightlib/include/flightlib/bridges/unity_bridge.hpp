@@ -46,6 +46,17 @@ class UnityBridge {
   // public get functions
   bool getRender(const FrameID frame_id);
   bool handleOutput();
+  bool handleOutputDelayed(const FrameID frame_id);
+  bool getOutbound();
+  bool handleOutboundOutput();
+  bool getInbound();
+  bool handleInboundOutput();
+  bool getEvaluation();
+  bool handleEvaluationOutput();
+  bool handleEvaluationStepOutput();
+  bool getEvaluationHomingStep(std::string home_vector);
+  Vector<3> getQuadPosFromUnity();
+  Vector<4> getQuadRotFromUnity();
   bool getPointCloud(PointCloudMessage_t &pointcloud_msg,
                      Scalar time_out = 600.0);
 
@@ -96,7 +107,11 @@ class UnityBridge {
   int64_t u_packet_latency_;
 
   // axuiliary variables
-  const Scalar unity_connection_time_out_{60.0};
+  const Scalar unity_connection_time_out_{120.0};
   bool unity_ready_{false};
+
+  // variables to hold the quad's desired pos and rot
+  Vector<3> quad_desired_pos;
+  Vector<4> quad_desired_rot;
 };
 }  // namespace flightlib

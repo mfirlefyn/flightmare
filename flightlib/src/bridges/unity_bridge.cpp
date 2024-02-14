@@ -37,6 +37,7 @@ bool UnityBridge::initializeConnections() {
 bool UnityBridge::connectUnity(const SceneID scene_id) {
   Scalar time_out_count = 0;
   Scalar sleep_useconds = 0.2 * 1e5;
+  //logger_.info("Setting the scene ID.");
   setScene(scene_id);
   // try to connect unity
   logger_.info("Trying to Connect Unity.");
@@ -51,9 +52,16 @@ bool UnityBridge::connectUnity(const SceneID scene_id) {
       return false;
     }
     // initialize Scene settings
-    sendInitialSettings();
+    //logger_.info("Initialize scene settings.");
+    bool settings_send = sendInitialSettings();
+    bool handled_settings = handleSettings();
+    //std::cout << (settings_send && handled_settings) << std::endl;
+    if (settings_send && handled_settings) {
+      unity_ready_ = true;
+    }
     // check if setting is done
-    unity_ready_ = handleSettings();
+    //logger_.info("Check if settings have been received and set.");
+    //unity_ready_ = handleSettings();
     // sleep
     usleep(sleep_useconds);
     // increase time out counter
@@ -76,15 +84,28 @@ bool UnityBridge::disconnectUnity() {
 
 bool UnityBridge::sendInitialSettings(void) {
   // create new message object
+  //logger_.info("Create new message object.");
   zmqpp::message msg;
   // add topic header
+  //logger_.info("Add topic header to message.");
   msg << "Pose";
   // create JSON object for initial settings
+  //logger_.info("Create JSON object for initial settings.");
   json json_mesg = settings_;
+  //std::cout << sizeof(json_mesg.dump()) << std::endl;
+  //std::cout << sizeof(json_mesg) << std::endl;
+  //std::cout << json_mesg << std::endl;
   msg << json_mesg.dump();
+  //std::cout << msg.get(1) << std::endl;
   // send message without blocking
-  pub_.send(msg, true);
-  return true;
+  //logger_.info("Send message with blocking.");
+  //std::cout << pub_.send(msg, true) << std::endl;
+  // code proceeds without having checked correct sending
+  if (pub_.send(msg, true)) {
+    return true;
+  } else {
+    return false;
+  }
 };
 
 bool UnityBridge::handleSettings(void) {
@@ -93,13 +114,18 @@ bool UnityBridge::handleSettings(void) {
 
   bool done = false;
   // Unpack message metadata
+  //std::cout << sub_.receive(msg, true) << std::endl;
   if (sub_.receive(msg, true)) {
     std::string metadata_string = msg.get(0);
+    std::cout << metadata_string << std::endl;
     // Parse metadata
     if (json::parse(metadata_string).size() > 1) {
+      logger_.info("Waiting for connection.");
       return false;  // hack
     }
+    logger_.info("JSON data has been received.");
     done = json::parse(metadata_string).at("ready").get<bool>();
+    //logger_.info("Scene status ", done);
   }
   return done;
 };
@@ -198,20 +224,120 @@ bool UnityBridge::addStaticObject(std::shared_ptr<StaticObject> static_object) {
   return true;
 }
 
-bool UnityBridge::handleOutput() {
+bool UnityBridge::handleOutputDelayed(const FrameID frame_id) {
   // create new message object
+  std::cout << "Create message" << std::endl;
   zmqpp::message msg;
   sub_.receive(msg);
+  std::cout << "unpack message metadata" << std::endl;
   // unpack message metadata
   std::string json_sub_msg = msg.get(0);
+  std::cout << "parse metadata" << std::endl;
   // parse metadata
   SubMessage_t sub_msg = json::parse(json_sub_msg);
+  std::cout << msg.get(0) << std::endl;
+
+  size_t image_i = 1;
+  // ensureBufferIsAllocated(sub_msg);
+  // making sure that the requested frame_id and the received one are synced
+  if (frame_id == sub_msg.frame_id) {
+    for (size_t idx = 0; idx < settings_.vehicles.size(); idx++) {
+      // update vehicle collision flag
+      unity_quadrotors_[idx]->setCollision(sub_msg.sub_vehicles[idx].collision);
+
+      std::cout << "Feed image data to RGB Camera" << std::endl;
+
+      // feed image data to RGB camera
+      for (const auto& cam : settings_.vehicles[idx].cameras) {
+        for (size_t layer_idx = 0; layer_idx <= cam.enabled_layers.size();
+             layer_idx++) {
+          if (!layer_idx == 0 && !cam.enabled_layers[layer_idx - 1]) continue;
+
+          if (layer_idx == 1) {
+            // depth
+            uint32_t image_len = cam.width * cam.height * 4;
+
+            std::cout << "Get raw image bytes from message" << std::endl;
+
+            // Get raw image bytes from ZMQ message.
+            // WARNING: This is a zero-copy operation that also casts the input to
+            // an array of unit8_t. when the message is deleted, this pointer is
+            // also dereferenced.
+            const uint8_t* image_data;
+            msg.get(image_data, image_i);
+            image_i = image_i + 1;
+            // Pack image into cv::Mat
+            cv::Mat new_image = cv::Mat(cam.height, cam.width, CV_32FC1);
+            memcpy(new_image.data, image_data, image_len);
+            // Flip image since OpenCV origin is upper left, but Unity's is lower
+            // left.
+            new_image = new_image * (100.f);
+            cv::flip(new_image, new_image, 0);
+
+            std::cout << "Feed image " << cam.output_index << " to queue" << std::endl;
+
+            unity_quadrotors_[idx]
+              ->getCameras()[cam.output_index]
+              ->feedImageQueue(layer_idx, new_image);
+
+
+          } else {
+            uint32_t image_len = cam.width * cam.height * cam.channels;
+            // Get raw image bytes from ZMQ message.
+            // WARNING: This is a zero-copy operation that also casts the input to
+            // an array of unit8_t. when the message is deleted, this pointer is
+            // also dereferenced.
+            const uint8_t* image_data;
+            msg.get(image_data, image_i);
+            image_i = image_i + 1;
+            // Pack image into cv::Mat
+            cv::Mat new_image =
+              cv::Mat(cam.height, cam.width, CV_MAKETYPE(CV_8U, cam.channels));
+            memcpy(new_image.data, image_data, image_len);
+            // Flip image since OpenCV origin is upper left, but Unity's is lower
+            // left.
+            cv::flip(new_image, new_image, 0);
+
+            std::cout << (int)new_image.at<uint8_t>(0,0,0) << std::endl; 
+
+            // Tell OpenCv that the input is RGB.
+            if (cam.channels == 3) {
+              cv::cvtColor(new_image, new_image, CV_RGB2BGR);
+            }
+            unity_quadrotors_[idx]
+              ->getCameras()[cam.output_index]
+              ->feedImageQueue(layer_idx, new_image);
+          }
+        }
+      }
+    }
+    return true;
+  } else {
+    std::cout << "pub/sub messages not synced" << std::endl;
+    return false;
+  }
+}
+
+bool UnityBridge::handleOutput() {
+  // create new message object
+  std::cout << "Create message" << std::endl;
+  zmqpp::message msg;
+  sub_.receive(msg);
+  std::cout << "unpack message metadata" << std::endl;
+  // unpack message metadata
+  std::string json_sub_msg = msg.get(0);
+  std::cout << "parse metadata" << std::endl;
+  // parse metadata
+  SubMessage_t sub_msg = json::parse(json_sub_msg);
+  std::cout << msg.get(0) << std::endl;
 
   size_t image_i = 1;
   // ensureBufferIsAllocated(sub_msg);
   for (size_t idx = 0; idx < settings_.vehicles.size(); idx++) {
     // update vehicle collision flag
     unity_quadrotors_[idx]->setCollision(sub_msg.sub_vehicles[idx].collision);
+
+    std::cout << "Feed image data to RGB Camera" << std::endl;
 
     // feed image data to RGB camera
     for (const auto& cam : settings_.vehicles[idx].cameras) {
@@ -222,6 +348,9 @@ bool UnityBridge::handleOutput() {
         if (layer_idx == 1) {
           // depth
           uint32_t image_len = cam.width * cam.height * 4;
+
+          std::cout << "Get raw image bytes from message" << std::endl;
+
           // Get raw image bytes from ZMQ message.
           // WARNING: This is a zero-copy operation that also casts the input to
           // an array of unit8_t. when the message is deleted, this pointer is
@@ -237,6 +366,7 @@ bool UnityBridge::handleOutput() {
           new_image = new_image * (100.f);
           cv::flip(new_image, new_image, 0);
 
+          std::cout << "Feed image " << cam.output_index << " to queue" << std::endl;
 
           unity_quadrotors_[idx]
             ->getCameras()[cam.output_index]
@@ -260,6 +390,8 @@ bool UnityBridge::handleOutput() {
           // left.
           cv::flip(new_image, new_image, 0);
 
+          std::cout << (int)new_image.at<uint8_t>(0,0,0) << std::endl; 
+
           // Tell OpenCv that the input is RGB.
           if (cam.channels == 3) {
             cv::cvtColor(new_image, new_image, CV_RGB2BGR);
@@ -272,6 +404,265 @@ bool UnityBridge::handleOutput() {
     }
   }
   return true;
+}
+
+bool UnityBridge::handleOutboundOutput() {
+  // create new message object
+  std::cout << "Outbound journey is active" << std::endl;
+  zmqpp::message msg;
+  sub_.receive(msg);
+  // unpack message metadata
+  std::string sub_msg_topic = msg.get(0);
+  std::string sub_msg;
+  if (sub_msg_topic == "outbound_to_inbound") {
+    std::cout << msg.get(0) << std::endl;
+    sub_msg = msg.get(1);
+    std::cout << sub_msg << std::endl;
+  }
+  // check whether the outbound journey is ready to switch to inbound
+  if (sub_msg == "True") {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool UnityBridge::getOutbound() {
+  // create new message object
+  zmqpp::message msg;
+  // add topic header
+  msg << "Outbound";
+  // create JSON object for pose update and append
+  //json json_msg = pub_msg_;
+  //msg << json_msg.dump();
+  msg << "true";
+  // send message without blocking
+  pub_.send(msg, true);
+  return true;
+}
+
+bool UnityBridge::handleInboundOutput() {
+  // create new message object
+  std::cout << "Inbound journey is active" << std::endl;
+  zmqpp::message msg;
+  sub_.receive(msg);
+  // unpack message metadata
+  std::string sub_msg_topic = msg.get(0);
+  std::string sub_msg;
+  std::string sub_msg2;
+  std::string sub_msg3;
+  // when inbound journey is still active
+  if (sub_msg_topic == "pos_rot") {
+    sub_msg = msg.get(1);
+    sub_msg2 = msg.get(2);
+    sub_msg3 = msg.get(3);
+    std::cout << sub_msg << std::endl;
+    std::cout << sub_msg2 << std::endl;
+    // remove brackets from first and last chars
+    sub_msg = sub_msg.substr(1,sub_msg.size()-2);
+    sub_msg3 = sub_msg3.substr(1,sub_msg3.size()-2);
+    // define the delimeter
+    std::string delimiter = ", ";
+    size_t delim_idx = 0;
+    // populate the quad_desired_pos and rot variables from delimited string
+    int idx = 0;
+    while ((delim_idx = sub_msg.find(delimiter)) != std::string::npos) {
+      //std::cout << sub_msg << std::endl;
+      quad_desired_pos[idx] = std::stof(sub_msg.substr(0,delim_idx));
+      sub_msg.erase(0, delim_idx + delimiter.length());
+      idx++;
+    }
+    quad_desired_pos[idx] = std::stof(sub_msg);
+
+    idx = 0;
+    while ((delim_idx = sub_msg3.find(delimiter)) != std::string::npos) {
+      //std::cout << sub_msg3 << std::endl;
+      quad_desired_rot[idx] = std::stof(sub_msg3.substr(0,delim_idx));
+      sub_msg3.erase(0, delim_idx + delimiter.length());
+      idx++;
+    }
+    quad_desired_rot[idx] = std::stof(sub_msg3);
+    //quad_desired_pos = Vector<3>(std::stof(sub_msg.substr(0,sub_msg.find(", "))),std::stof(sub_msg.substr(1,sub_msg.find(", "))),std::stof(sub_msg.substr(2,sub_msg.find(", "))));
+    //quad_desired_rot = Vector<3>(std::stof(sub_msg2.substr(0,sub_msg2.find(", "))),std::stof(sub_msg2.substr(1,sub_msg2.find(", "))),std::stof(sub_msg2.substr(2,sub_msg2.find(", "))));
+    //std::cout << quad_desired_pos << std::endl;
+    std::cout << quad_desired_rot << std::endl;
+  // when inbound journey is completed
+  } else if (sub_msg_topic == "inbound_to_eval") {
+    std::cout << msg.get(0) << std::endl;
+    sub_msg = msg.get(1);
+    std::cout << sub_msg << std::endl;
+  }
+  // check whether the outbound journey is ready to switch to inbound
+  if (sub_msg == "True") {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool UnityBridge::getInbound() {
+  // create new message object
+  zmqpp::message msg;
+  // add topic header
+  msg << "Inbound";
+  // create JSON object for pose update and append
+  //json json_msg = pub_msg_;
+  //msg << json_msg.dump();
+  msg << "true";
+  // send message without blocking
+  pub_.send(msg, true);
+  return true;
+}
+
+bool UnityBridge::handleEvaluationOutput() {
+  // create new message object
+  std::cout << "Evaluation phase is active" << std::endl;
+  zmqpp::message msg;
+  sub_.receive(msg);
+  // unpack message metadata
+  std::string sub_msg_topic = msg.get(0);
+  std::string sub_msg;
+  //std::string sub_msg2;
+  //std::string sub_msg3;
+  // when inbound journey is still active
+  //if (sub_msg_topic == "pos_rot") {
+    //sub_msg = msg.get(1);
+    //sub_msg2 = msg.get(2);
+    //sub_msg3 = msg.get(3);
+    //std::cout << sub_msg << std::endl;
+    //std::cout << sub_msg2 << std::endl;
+    // remove brackets from first and last chars
+    //sub_msg = sub_msg.substr(1,sub_msg.size()-2);
+    //sub_msg3 = sub_msg3.substr(1,sub_msg3.size()-2);
+    // define the delimeter
+    //std::string delimiter = ", ";
+    //size_t delim_idx = 0;
+    // populate the quad_desired_pos and rot variables from delimited string
+    //int idx = 0;
+    //while ((delim_idx = sub_msg.find(delimiter)) != std::string::npos) {
+      //std::cout << sub_msg << std::endl;
+      //quad_desired_pos[idx] = std::stof(sub_msg.substr(0,delim_idx));
+      //sub_msg.erase(0, delim_idx + delimiter.length());
+      //idx++;
+    //}
+    //quad_desired_pos[idx] = std::stof(sub_msg);
+
+    //idx = 0;
+    //while ((delim_idx = sub_msg3.find(delimiter)) != std::string::npos) {
+      //std::cout << sub_msg3 << std::endl;
+      //quad_desired_rot[idx] = std::stof(sub_msg3.substr(0,delim_idx));
+      //sub_msg3.erase(0, delim_idx + delimiter.length());
+      //idx++;
+    //}
+    //quad_desired_rot[idx] = std::stof(sub_msg3);
+    //quad_desired_pos = Vector<3>(std::stof(sub_msg.substr(0,sub_msg.find(", "))),std::stof(sub_msg.substr(1,sub_msg.find(", "))),std::stof(sub_msg.substr(2,sub_msg.find(", "))));
+    //quad_desired_rot = Vector<3>(std::stof(sub_msg2.substr(0,sub_msg2.find(", "))),std::stof(sub_msg2.substr(1,sub_msg2.find(", "))),std::stof(sub_msg2.substr(2,sub_msg2.find(", "))));
+    //std::cout << quad_desired_pos << std::endl;
+    //std::cout << quad_desired_rot << std::endl;
+  // when the simulation is finished
+  //} else if (sub_msg_topic == "sim_finish") {
+  if (sub_msg_topic == "sim_finish") {
+    std::cout << msg.get(0) << std::endl;
+    sub_msg = msg.get(1);
+    std::cout << sub_msg << std::endl;
+  }
+  // check whether simulation is done
+  if (sub_msg == "True") {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool UnityBridge::getEvaluation() {
+  // create new message object
+  zmqpp::message msg;
+  // add topic header
+  msg << "Evaluation";
+  // create JSON object for pose update and append
+  //json json_msg = pub_msg_;
+  //msg << json_msg.dump();
+  msg << "true";
+  // send message without blocking
+  pub_.send(msg, true);
+  return true;
+}
+
+bool UnityBridge::handleEvaluationStepOutput() {
+  // create new message object
+  std::cout << "Evaluation step is performed" << std::endl;
+  zmqpp::message msg;
+  sub_.receive(msg);
+  // unpack message metadata
+  std::string sub_msg_topic = msg.get(0);
+  std::string sub_msg;
+  std::string sub_msg2;
+  std::string sub_msg3;
+  std::string sub_msg4;
+  if (sub_msg_topic == "evaluation_step") {
+    std::cout << msg.get(0) << std::endl;
+    sub_msg = msg.get(1);
+    sub_msg2 = msg.get(2);
+    sub_msg3 = msg.get(3);
+    sub_msg4 = msg.get(4);
+    std::cout << sub_msg << std::endl;
+    std::cout << sub_msg2 << std::endl;
+    std::cout << sub_msg3 << std::endl;
+
+    // remove brackets from first and last chars
+    sub_msg2 = sub_msg2.substr(1,sub_msg2.size()-2);
+    sub_msg4 = sub_msg4.substr(1,sub_msg4.size()-2);
+    // define the delimeter
+    std::string delimiter = ", ";
+    size_t delim_idx = 0;
+    // populate the quad_desired_pos and rot variables from delimited string
+    int idx = 0;
+    while ((delim_idx = sub_msg2.find(delimiter)) != std::string::npos) {
+      //std::cout << sub_msg << std::endl;
+      quad_desired_pos[idx] = std::stof(sub_msg2.substr(0,delim_idx));
+      sub_msg2.erase(0, delim_idx + delimiter.length());
+      idx++;
+    }
+    quad_desired_pos[idx] = std::stof(sub_msg2);
+
+    idx = 0;
+    while ((delim_idx = sub_msg4.find(delimiter)) != std::string::npos) {
+      //std::cout << sub_msg3 << std::endl;
+      quad_desired_rot[idx] = std::stof(sub_msg4.substr(0,delim_idx));
+      sub_msg4.erase(0, delim_idx + delimiter.length());
+      idx++;
+    }
+    quad_desired_rot[idx] = std::stof(sub_msg4);
+  }
+  // check whether the outbound journey is ready to switch to inbound
+  if (sub_msg == "True") {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool UnityBridge::getEvaluationHomingStep(std::string home_vector) {
+  std::cout << "Sending Home Vector" << std::endl;
+  // create new message object
+  zmqpp::message msg;
+  // add topic header
+  msg << "Evaluation";
+  // create JSON object for pose update and append
+  //json json_msg = pub_msg_;
+  //msg << json_msg.dump();
+  msg << home_vector;
+  // send message without blocking
+  pub_.send(msg, true);
+  return true;
+}
+
+Vector<3> UnityBridge::getQuadPosFromUnity() {
+  return quad_desired_pos;
+}
+
+Vector<4> UnityBridge::getQuadRotFromUnity() {
+  return quad_desired_rot;
 }
 
 bool UnityBridge::getPointCloud(PointCloudMessage_t& pointcloud_msg,

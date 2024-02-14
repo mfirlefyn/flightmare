@@ -20,14 +20,19 @@ using json = nlohmann::json;
 
 namespace flightlib {
 
+// change numbers of the scenes that are not present in the current renderer
 enum UnityScene {
   INDUSTRIAL = 0,
   WAREHOUSE = 1,
   GARAGE = 2,
   TUNELS = 4,
   NATUREFOREST = 3,
+  OWN = 5,
+  GRADCAM = 6,
+  PROCGEN = 7,
   // total number of environment
-  SceneNum = 5
+  //SceneNum = 5
+  SceneNum = 8
 };
 
 // Unity Camera, should not be used alone.
@@ -76,7 +81,7 @@ struct Vehicle_t {
   std::vector<Scalar> size{1.0, 1.0, 1.0};  // scale
   // sensors attached on the vehicle
   std::vector<Camera_t> cameras;
-  std::vector<Lidar_t> lidars;
+  std::vector<Lidar_t> lidars;   
   // collision check
   bool has_collision_check = true;
 };
@@ -94,7 +99,7 @@ struct Object_t {
 
 struct SettingsMessage_t {
   // scene/render settings
-  size_t scene_id = UnityScene::WAREHOUSE;
+  size_t scene_id = UnityScene::OWN;
 
   //
   std::vector<Vehicle_t> vehicles;
