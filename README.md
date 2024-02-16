@@ -1,6 +1,6 @@
-# Direct Learning for Insect-inspired Home Vector Estimation (check title of paper)
+# Flightmare for Direct Learning of Home Vector Direction for Insect-inspired Robot Navigation 
 
-
+![alt text](https://github.com/mfirlefyn/flightmare/blob/master/docs/scene_git.png "intro image")
 
 ## Clean Installation Instructions
 
@@ -205,4 +205,4 @@ kill -9 17929
 
 If you succeeded in opening the renderer, click "Forest" in the menu to enter the Forest environment we developed. Be patient for the renderer to change the displayed environment. Once changed, click "Scene Save Pointcloud". Now you can navigate the simulated world with the "awsd" keys. The "qe" keys control directional rotation. The "tg" keys control longitudinal rotation. Lastly, the "rf" keys can be used to go up and down. The "h" key can be used to toggle visibility of the cube that represents the nest area. 
 
-Your window should look similar to the following: ![alt text](https://github.com/mfirlefyn/flightmare/blob/master/docs/scene_git.png "Screenshot Forest Env")
+Your window should look similar to the following: ![alt text](https://github.com/mfirlefyn/flightmare/blob/master/docs/screenshot_forestenv.png "Screenshot Forest Env")
