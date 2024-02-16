@@ -1,10 +1,10 @@
-# Flightmare for Direct Learning of Home Vector Direction for Insect-inspired Robot Navigation 
+# Flightmare: Direct Learning of Home Vector Direction for Insect-inspired Robot Navigation 
 
 ![alt text](https://github.com/mfirlefyn/flightmare/blob/master/docs/scene_git.png "intro image")
 
 ## Clean Installation Instructions
 
-Taken from the original [Flightmare](https://flightmare.readthedocs.io/en/latest/) repository.
+Taken from the original [Flightmare](https://flightmare.readthedocs.io/en/latest/) documentation.
 
 This guide is meant for bearingnet (approach from paper) and Flightmare installation on a fresh Ubuntu 20.04 machine. It is not excluded that the installation procedure will work on a not-so-fresh machine. It may also work on other Ubuntu or Linux flavors. This is left for the reader. 
 
