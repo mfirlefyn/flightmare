@@ -4,7 +4,7 @@
 
 ## Clean Installation Instructions
 
-Taken from https://flightmare.readthedocs.io/en/latest/ .
+Taken from the original [Flightmare](https://flightmare.readthedocs.io/en/latest/) repository.
 
 This guide is meant for bearingnet (approach from paper) and Flightmare installation on a fresh Ubuntu 20.04 machine. It is not excluded that the installation procedure will work on a not-so-fresh machine. It may also work on other Ubuntu or Linux flavors. This is left for the reader. 
 
@@ -54,7 +54,7 @@ ROS comes in many different versions depending on your OS. So, make sure you pic
 
 The following listing of instructions is taken literally from the ROS website.
 
-Make sure to configure your Ubuntu repositories to allow "restricted", "universe", and "multiverse" packages. Follow https://help.ubuntu.com/community/Repositories/Ubuntu for the appropriate instructions on how to do this. You can use the link just to check whether this is the case. Normally they are all already toggled on by default.
+Make sure to configure your Ubuntu repositories to allow "restricted", "universe", and "multiverse" packages. Follow the Ubuntu [website link](https://help.ubuntu.com/community/Repositories/Ubuntu) for the appropriate instructions on how to do this. You can use the link just to check whether this is the case. Normally they are all already toggled on by default.
 
 Add the ROS Ubuntu repository to your sources.list:
 ```console
@@ -167,7 +167,7 @@ If you encounter any errors that relate to certain ROS packages that were not pr
 
 #### Flightmare Unity Renderer Binary
 
-Flightmare is installed, but that does not mean that it can be used immediately. The Unity Renderer needs to be in the appropriate directory to start up the simulation. Thus, first download the Unity renderer binary from our Releases page https://github.com/mfirlefyn/flightmare/releases (The name will be "RPG_Flightmare.tar.xz"). Assuming that the tar library is now in your ~/Downloads directory, we can simply run the following to extract it to the right destination (!):
+Flightmare is installed, but that does not mean that it can be used immediately. The Unity Renderer needs to be in the appropriate directory to start up the simulation. Thus, first download the Unity renderer binary from our [Releases](https://github.com/mfirlefyn/flightmare/releases) page (The name will be "RPG_Flightmare.tar.xz"). Assuming that the tar library is now in your ~/Downloads directory, we can simply run the following to extract it to the right destination (!):
 ```console
 cd ~/catkin_ws/src/flightmare/flightrender
 tar -xvf ~/Downloads/RPG_flightmare.tar.xz
@@ -205,4 +205,4 @@ kill -9 17929
 
 If you succeeded in opening the renderer, click "Forest" in the menu to enter the Forest environment we developed. Be patient for the renderer to change the displayed environment. Once changed, click "Scene Save Pointcloud". Now you can navigate the simulated world with the "awsd" keys. The "qe" keys control directional rotation. The "tg" keys control longitudinal rotation. Lastly, the "rf" keys can be used to go up and down. The "h" key can be used to toggle visibility of the cube that represents the nest area. 
 
-Your window should look similar to the following: ![alt text](Downloads/screenshotForrestenv.png "Screenshot Forest Env")
+Your window should look similar to the following: ![alt text](https://github.com/mfirlefyn/flightmare/blob/master/docs/scene_git.png "Screenshot Forest Env")
