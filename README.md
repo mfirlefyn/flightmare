@@ -203,6 +203,74 @@ Where "PID" in the instruction is replaced by the actual PID number, 17929 for e
 kill -9 17929
 ``` 
 
-If you succeeded in opening the renderer, click "Forest" in the menu to enter the Forest environment we developed. Be patient for the renderer to change the displayed environment. Once changed, click "Scene Save Pointcloud". Now you can navigate the simulated world with the "awsd" keys. The "qe" keys control directional rotation. The "tg" keys control longitudinal rotation. Lastly, the "rf" keys can be used to go up and down. The "h" key can be used to toggle visibility of the cube that represents the nest area. 
+If you succeeded in opening the renderer, click "Forest" in the menu to enter the Forest environment we developed. Be patient for the renderer to change the displayed environment. Once changed, click "Scene Save Pointcloud". Now you can navigate the simulated world with the "awsd" keys. The "qe" keys control directional rotation. The "tg" keys control longitudinal rotation. Lastly, the "rf" keys can be used to go up and down. The "h" key can be used to toggle visibility of the cube that represents the nest. 
 
 Your window should look similar to the following: ![alt text](https://github.com/mfirlefyn/flightmare/blob/master/docs/screenshot_forestenv.png "Screenshot Forest Env")
+
+To run the Flightmare simulation, open a terminal and enter the following (!):
+```console
+source /opt/ros/noetic/setup.bash
+source ~/catkin_ws/devel/setup.bash
+roslaunch flightros camera.launch
+```
+
+Like with running the standalone renderer, it may happen that the renderer hangs on opening. The terminal will print a summary of the initialization process and will then indicate "[UnityBrudge] Trying to Connect Unity. [............" and so on. If the renderer does not respond within 30-60 seconds, you can assume that the renderer hangs again and close it down using the kill instruction. If you scroll up in the printed summary, you will have 2 lines indicating the PID of the renderer process and the camera simulation program running in Flightmare. This is "process[rpg_flightmare_render-2]: started with pid [3145]" and "process[camera-3]: started with pid [3150]" respectively. Use your PID numbers instead and run the kill commands in a separate terminal (!):
+```console
+kill -9 3150
+kill -9 3145
+```
+
+If these processes are killed, then you should have the first terminal available again. Retry the roslaunch command in the first terminal:
+```console
+roslaunch flightros camera.launch
+```
+
+Iterate the kill and start up process until the renderer starts up properly. The renderer needs to start up in order to tell the camera program that it is ready to receive the next instructions. Otherwise the camera program that you are trying to run in your first terminal just continues printing "....." until the timeout and it will kill the running processes by itself. Although, this may take a lot longer than killing the processes yourself as was just shown.
+
+Once the renderer starts up properly, it should display something like: ![alt text](https://github.com/mfirlefyn/flightmare/blob/master/docs/init_plac_screenshot.png "Initial placement")
+
+Be sure to click the renderer's screen and press "h" to toggle the visibility of the nest cube. Otherwise you generated images will include the cube. The terminal will start displaying some fields indicating information about the Flightmare-renderer communications. Such a field looks like:
+"
+frame_id: 1
+Rendering environment
+Handling environment output
+Create message
+unpack message metadata
+parse metadata
+{"pub_vehicles":[{"collision":false,"lidar_ranges":[]}],"frame_id":0}
+pub/sub messages not synced
+"
+
+Such information fields indicate some information about the ZMQ messaging middleware. The communication for "frame_id 1" has not been initialized yet, which the "pub/sub messages not synced" statement indicates. After a while, between "frame_id 50" and "frame_id 60", the statement disappears and is replaced by a "Feed image data to RGB Camera" statement. At this point, the communication between the Flightmare camera program and the Unity renderer has been established. The 6 subsequent numbers you see appearing indicate the first pixel value of all the images it is accumulating. Let the program continue to print.
+
+Unity has no inherent capability to simulate catadioptric imaging systems or fisheye lenses. Therefore, the camera program takes care of this with a hard-coded pixel mapping from 6 perspective images to a single catadioptric image. The mapping is taken from the [OmniSCV package](https://github.com/Sbrunoberenguel/OmniSCV). The OmniSCV code base is written in Python, so the essential mapping matrix is imported in Flightmare and the camera program contains a part where the Python code is ported to Flightmare's C++.
+
+Starting from "frame_id 101" the program starts indicating that it is saving the perspective images and the last line per field indicates the X,Y position of the simulated quadcopter. You will see that the quadcopter on the renderer screen starts to move and trace a learning trajectory. This can be any trajectory as specified in the camera program. You can observe saved perspective images in the hidden ros folder by running:
+```console
+nautilus ~/.ros
+```
+
+The omni-directional images are saved in a separate folder on your catkin workspace:
+```console
+nautilus ~/catkin_ws/src/flightmare/flightros/src/camera/images
+```
+
+Note that the omni-directional images are grey-scale. The training images are taken as single channel because this limits the weights that need to be trained by the net.
+
+Once the omni-directional images are generated and saved, the simulated learning flight is completed and your terminal will indicate that the outbound flight trajectory can commence. In a real robot, odometry is used to accumulate a home vector. During the outbound trajectory, the home vector will drift due to effects such as wind. This was simplified in this simulation by just guiding the quadcopter with the "awsd" keys on your keyboard and rotating with the "qe" keys. Be sure to have the renderer's window as the active window on your UI by clicking it first. Once the quadcopter completes its outbound flight phase, the drift is simulated by having a perturbed nest location. In other words, we choose the drift that has been accumulated manually. This drift needs to be set in the renderer's source code, which will be explained in its respective [reposity](https://github.com/mfirlefyn/flightmare_unity).
+
+When you want to switch the flight phase from outbound to inbound, simply press the "enter" key once. Again, be sure to have the renderer's window active before pressing "enter". Your terminal will display that the inbound flight phase has commenced and you see the quadcopter fly back to the learning area in a straight line. 
+
+Once the quadcopter has reached the learning area, it will hover in the same place, you can double check the quad's position and rotational vector in the terminal output. Again, make sure the window is active and press "enter" once to start evaluating the images taken on your current location. The program will generate the omni-directional image at your current location, but will there. The terminal will display: 
+"
+Constructing omni-directional images
+Quad Position: {539.349976}, {578.260010}
+Quad Rotation: {-0.279110}, {-0.000000}, {-0.000000}, {-0.960260}
+Saving omni-directional evaluation picture
+Sending message to bearingnet to evaluate available image.
+Receiving Home Vector
+"
+
+Now, the camera program is waiting on a response from the Python program that feeds the taken omni-directional image through the neural net to get a home vector estimate and sends the output back to the Flightmare simulation to make a step in the estimated home direction. Before the evaluation can be done and the homing achieved, you will need to install the necessary software using this repo (LINK NEEDS TO BE INSERTED!).
+
+You have tested your Flightmare setup and if everything is as expected, you can continue to install the Python program to train and evaluate the network. The Python program is designed to run in a terminal along side the camera program. During your outbound trajectory, you can wait to press the "enter" key such that the neural network has sufficient time to train. Once the training is completed, it will wait for the message from the camera program to start evaluating. The Unity renderer code does not need to be adjusted as long as you do not need to change the perturbed nest location in the learning area (location for the quad to return to in the inbound flight phase) or if you do not need a different simulation environment.
