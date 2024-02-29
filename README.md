@@ -271,7 +271,7 @@ Sending message to bearingnet to evaluate available image.
 Receiving Home Vector
 "
 
-Now, the camera program is waiting on a response from the Python program that feeds the taken omni-directional image through the neural net to get a home vector estimate and sends the output back to the Flightmare simulation to make a step in the estimated home direction. Before the evaluation can be done and the homing achieved, you will need to install the necessary software using this repo (LINK NEEDS TO BE INSERTED!).
+Now, the camera program is waiting on a response from the Python program that feeds the taken omni-directional image through the neural net to get a home vector estimate and sends the output back to the Flightmare simulation to make a step in the estimated home direction. Before the evaluation can be done and the homing achieved, you will need to install the necessary software using this [repo](https://github.com/mfirlefyn/bearingNet/tree/master).
 
 You have tested your Flightmare setup and if everything is as expected, you can continue to install the Python program to train and evaluate the network. The Python program is designed to run in a terminal along side the camera program. During your outbound trajectory, you can wait to press the "enter" key such that the neural network has sufficient time to train. Once the training is completed, it will wait for the message from the camera program to start evaluating. The Unity renderer code does not need to be adjusted as long as you do not need to change the perturbed nest location in the learning area (location for the quad to return to in the inbound flight phase) or if you do not need a different simulation environment.
 
